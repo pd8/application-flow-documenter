@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "es2020",
+    "module": "es6",
+    "declaration": true,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "experimentalDecorators": true,
+    "rootDir": ".",
+    "sourceMap": true,
+    "listFiles": true,
+    "noEmitOnError": true,
+    "lib": ["DOM","ES2015","ES2016","ES2017","ES2018","ES2019","ES2020","ESNext"],
+    "outDir": "./dist"
+  },
+  "exclude": [],
+  "files": ["index.ts", "types.ts"]
+}
