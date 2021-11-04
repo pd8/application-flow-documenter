@@ -8,6 +8,8 @@ import * as Estree from "./types";
 import * as espree from "espree";
 //@ts-ignore
 import md5 from "md5";
+//@ts-ignore
+import ts from "typescript";
 
 const parser = yargs(hideBin(process.argv)).options({
   path: { type: "string", demandOption: true },
@@ -78,15 +80,26 @@ const getFileNameFromPath = (path: string): string => {
 async function createModuleRegistry(
   files: Array<{ fullPath: string; relativePath: string }>,
   basePath: string
-): Promise<Array<Registry>> {
+): Promise<Array<Registry | undefined>> {
   const res = await Promise.all(
     files.map(async ({ relativePath, fullPath }) => {
       const fileName = getFileNameFromPath(relativePath);
       try {
+        const fileExt = path.extname(fullPath);
+        const isTS = [".ts", ".tsx"].includes(fileExt);
+        const isJS = [".js", ".jsx", ".cjs", ".mjs"].includes(fileExt);
+        if (!isJS && !isTS) return;
         const contents = await fsPromises.readFile(fullPath, "utf-8");
+
+        const jsFile = isTS
+          ? ts.transpileModule(contents, {
+              compilerOptions: { module: ts.ModuleKind.ESNext },
+            }).outputText
+          : contents;
+
         const hash: string = md5(contents);
 
-        const parsed = espree.parse(contents, {
+        const parsed = espree.parse(jsFile, {
           ecmaVersion: 12,
           sourceType: "module",
           ecmaFeatures: {
@@ -224,23 +237,37 @@ async function createModuleRegistry(
   return res;
 }
 
-const convertRegistriesToNodes = (registries: Array<Registry>) =>
+interface Node {
+  key: string;
+  fields: Array<{ name: string }>;
+  loc: string;
+}
+
+const convertRegistriesToNodes = (registries: Array<Registry>): Array<Node> =>
   registries.map((registry, i) => ({
     key: registry.fileName,
     fields: registry.exports.map((exp) => ({ name: exp.name })),
     loc: `${i * 140}, 0`,
   }));
 
+const replaceInFile = async (nodes: Array<Node>) => {
+  const data = await fsPromises.readFile("index.html", "utf8");
+
+  const result = data.replace(/NODE_DATA_ARRAY_HERE/, JSON.stringify(nodes));
+
+  fsPromises.writeFile("index.html", result, "utf8");
+};
+
 (async function main() {
   const argv = await parser.argv;
   const directories = await walkDir(argv.path, argv.exclude);
-  const registries: Array<Registry> = await createModuleRegistry(
+  const registries: Array<Registry | undefined> = await createModuleRegistry(
     directories,
     argv.path
   );
   const happyRegistries: Array<Registry> = registries.filter(
-    (reg) => !(reg.ok instanceof Error)
-  );
+    (reg) => !!reg && !(reg.ok instanceof Error)
+  ) as Array<Registry>;
   const nodes = convertRegistriesToNodes(happyRegistries);
-  console.debug(JSON.stringify(nodes));
+  await replaceInFile(nodes);
 })();
