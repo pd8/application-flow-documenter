@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"/>
 <meta name="description" content="A diagram for displaying and editing the N to M relationships from one set of objects to another set of objects."/> 
-<script src="https://unpkg.com/gojs/release/go-debug.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.1.52/go-debug.min.js" integrity="sha512-EVALZ5jciAqhC7oOlUctDxnbjgiPlZGH7CzxbhlyPHsTybodw8HkMNsdSRyDI4/FqDJpxp2ZpWlKGwDQsMDu9w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 </head>
 
@@ -14,7 +14,6 @@
     <!-- * * * * * * * * * * * * * -->
     <!-- Start of GoJS sample code -->
     
-    <script src="../release/go.js"></script>
     <div class="p-4 w-full">
     <script id="code">
     function init() {
@@ -25,6 +24,7 @@
           {
             validCycle: go.Diagram.CycleNotDirected,  // don't allow loops
             // For this sample, automatically show the state of the diagram's model on the page
+            layout: $(go.GridLayout, { comparer: go.GridLayout.smartComparer }),
             "ModelChanged": function(e) {
               if (e.isTransactionFinished) showModel();
             },
@@ -121,11 +121,7 @@
             linkToPortIdProperty: "toPort",
             nodeDataArray: 
             NODE_DATA_ARRAY_HERE,
-            linkDataArray: [
-              { from: "Record1", fromPort: "field1", to: "Record2", toPort: "fieldA" },
-              { from: "Record1", fromPort: "field2", to: "Record2", toPort: "fieldD" },
-              { from: "Record1", fromPort: "fieldThree", to: "Record2", toPort: "fieldB" }
-            ]
+            linkDataArray: LINK_DATA_ARRAY_HERE
           });
 
       showModel();  // show the diagram's initial model

@@ -10,6 +10,8 @@ import * as espree from "espree";
 import md5 from "md5";
 //@ts-ignore
 import ts from "typescript";
+//@ts-ignore
+import frt from "flow-remove-types";
 
 const parser = yargs(hideBin(process.argv)).options({
   path: { type: "string", demandOption: true },
@@ -95,7 +97,7 @@ async function createModuleRegistry(
           ? ts.transpileModule(contents, {
               compilerOptions: { module: ts.ModuleKind.ESNext },
             }).outputText
-          : contents;
+          : frt(contents);
 
         const hash: string = md5(contents);
 
@@ -240,22 +242,68 @@ async function createModuleRegistry(
 interface Node {
   key: string;
   fields: Array<{ name: string }>;
-  loc: string;
+}
+
+interface Link {
+  from: string;
+  fromPort: string;
+  to: string;
+  toPort: string;
 }
 
 const convertRegistriesToNodes = (registries: Array<Registry>): Array<Node> =>
-  registries.map((registry, i) => ({
-    key: registry.fileName,
-    fields: registry.exports.map((exp) => ({ name: exp.name })),
-    loc: `${i * 140}, 0`,
-  }));
+  registries.map((registry) => {
+    const fields = registry.exports
+      .map((exp) => ({
+        name: exp.name,
+        color: "#00BCF2",
+        figure: "TriangleLeft",
+      }))
+      .concat(
+        registry.imports.map((imp) => ({
+          name: imp.name,
+          color: "#F25022",
+          figure: "TriangleRight",
+        }))
+      );
+    return {
+      key: registry.fileName.replace(
+        new RegExp(path.extname(registry.fileName)),
+        ""
+      ),
+      fields,
+      links: [],
+    };
+  });
 
-const replaceInFile = async (nodes: Array<Node>) => {
+const convertRegistriesToLinks = (registries: Array<Registry>): Array<Link> =>
+  registries
+    .map((registry) =>
+      registry.imports.map((imp) => ({
+        from: imp.fileName,
+        fromPort: imp.name,
+        to: registry.fileName.replace(
+          new RegExp(path.extname(registry.fileName)),
+          ""
+        ),
+        toPort: imp.name,
+      }))
+    )
+    .flat(100);
+
+const replaceInFile = async (nodes: Array<Node>, links: Array<Link>) => {
   const data = await fsPromises.readFile("index.html", "utf8");
 
-  const result = data.replace(/NODE_DATA_ARRAY_HERE/, JSON.stringify(nodes));
+  const result = data.replace(
+    /NODE_DATA_ARRAY_HERE/,
+    JSON.stringify(nodes, undefined, 2)
+  );
+  const result2 = result.replace(
+    /LINK_DATA_ARRAY_HERE/,
+    JSON.stringify(links, undefined, 2)
+  );
 
-  fsPromises.writeFile("index.html", result, "utf8");
+  fsPromises.writeFile("tree.html", result2, "utf8");
 };
 
 (async function main() {
@@ -269,5 +317,6 @@ const replaceInFile = async (nodes: Array<Node>) => {
     (reg) => !!reg && !(reg.ok instanceof Error)
   ) as Array<Registry>;
   const nodes = convertRegistriesToNodes(happyRegistries);
-  await replaceInFile(nodes);
+  const links = convertRegistriesToLinks(happyRegistries);
+  await replaceInFile(nodes, links);
 })();
