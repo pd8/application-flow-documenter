@@ -18,19 +18,51 @@ const parser = yargs(hideBin(process.argv)).options({
   exclude: { type: "string", default: "tests" },
 });
 
+interface Entry {
+  fileName: string;
+  relativePath: string;
+  fullPath: string;
+  fileNameWOExt: string;
+  relativePathWOExt: string;
+  fullPathWOExt: string;
+  fullDirectory: string;
+  relativeDirectory: string;
+  ext: string;
+}
+
+const removeExtension = (input: string, ext: string): string =>
+  input.replace(new RegExp(ext + "$"), "");
+
 async function walkDir(
   dir: string,
-  exclusionString: string
-): Promise<Array<{ fullPath: string; relativePath: string }>> {
+  exclusionString: string,
+  pathToDir: string
+): Promise<Array<Entry>> {
   const dirEntries = await fsPromises.readdir(dir);
   const results = await Promise.all(
     dirEntries.map(async (entry: string) => {
       const dirPath = path.join(dir, entry);
       const isDirectory = fs.statSync(dirPath).isDirectory();
       if (isDirectory) {
-        return walkDir(dirPath, exclusionString);
+        return walkDir(dirPath, exclusionString, pathToDir);
       } else {
-        return [{ fullPath: dirPath, relativePath: entry }];
+        const ext = path.extname(dirPath);
+        const fullPath = dirPath;
+        const relativePath = dirPath.replace(pathToDir, "");
+        const fileName = entry;
+        return [
+          {
+            fullPath,
+            relativePath,
+            fileName,
+            fullPathWOExt: removeExtension(fullPath, ext),
+            relativePathWOExt: removeExtension(relativePath, ext),
+            fileNameWOExt: removeExtension(fileName, ext),
+            fullDirectory: fullPath.replace(fileName, ""),
+            relativeDirectory: relativePath.replace(fileName, ""),
+            ext,
+          },
+        ];
       }
     })
   );
@@ -39,7 +71,9 @@ async function walkDir(
     .filter(({ fullPath }) => !fullPath.includes(exclusionString));
 }
 
-interface Registry {
+type Registry = SuccessfulRegistry | UnsuccessfulRegistry;
+
+interface SuccessfulRegistry {
   id: string;
   path: string;
   fileName: string;
@@ -48,10 +82,14 @@ interface Registry {
   imports: Array<{
     name: string;
     type: string;
-    path: string;
-    fileName: string;
+    from: string;
   }>;
-  ok: true | unknown;
+  entry: Entry;
+  ok: true;
+}
+
+interface UnsuccessfulRegistry {
+  ok: unknown;
 }
 
 const importTypes = ["ImportDeclaration"];
@@ -66,42 +104,60 @@ const isModuleDeclaration = (
   node: Estree.Directive | Estree.Statement | Estree.ModuleDeclaration
 ): node is Estree.ModuleDeclaration => {
   const n = node as Estree.ModuleDeclaration;
-  return (
-    n.type === "ImportDeclaration" ||
-    n.type === "ExportAllDeclaration" ||
-    n.type === "ExportNamedDeclaration" ||
-    n.type === "ExportDefaultDeclaration"
-  );
+  return importTypes.includes(n.type) || exportTypes.includes(n.type);
 };
+
+const isRelativePath = (path: string): boolean =>
+  path.startsWith("./") || path.startsWith("../");
 
 const getFileNameFromPath = (path: string): string => {
   const splitPath = path.split("/");
   return splitPath[splitPath.length - 1];
 };
 
+const isTypeScriptFile = (ext: string): boolean =>
+  [".ts", ".tsx"].includes(ext);
+const isJavaScriptFile = (ext: string): boolean =>
+  [".js", ".jsx", ".cjs", ".mjs"].includes(ext);
+const isFlowFile = (fileBody: string): boolean => fileBody.includes("@flow");
+
+interface File {
+  contents: string;
+  hash: string;
+  entry: Entry;
+}
+
+const getFile = async (entry: Entry): Promise<File | null> => {
+  const fileExt = path.extname(entry.fullPath);
+  const isTS = isTypeScriptFile(fileExt);
+  const isJS = isJavaScriptFile(fileExt);
+  if (!isJS && !isTS) return null;
+  const contents = await fsPromises.readFile(entry.fullPath, "utf-8");
+  const hash: string = md5(contents);
+
+  const isFlow = isFlowFile(contents);
+
+  const transpiledContents = isTS
+    ? ts.transpileModule(contents, {
+        compilerOptions: { module: ts.ModuleKind.ESNext },
+      }).outputText
+    : isFlow
+    ? frt(contents)
+    : contents;
+
+  return { contents: transpiledContents, hash, entry };
+};
+
 async function createModuleRegistry(
-  files: Array<{ fullPath: string; relativePath: string }>,
+  files: Array<File>,
   basePath: string
 ): Promise<Array<Registry | undefined>> {
   const res = await Promise.all(
-    files.map(async ({ relativePath, fullPath }) => {
-      const fileName = getFileNameFromPath(relativePath);
+    files.map(async (file) => {
+      const { fileNameWOExt: fileName } = file.entry;
       try {
-        const fileExt = path.extname(fullPath);
-        const isTS = [".ts", ".tsx"].includes(fileExt);
-        const isJS = [".js", ".jsx", ".cjs", ".mjs"].includes(fileExt);
-        if (!isJS && !isTS) return;
-        const contents = await fsPromises.readFile(fullPath, "utf-8");
-
-        const jsFile = isTS
-          ? ts.transpileModule(contents, {
-              compilerOptions: { module: ts.ModuleKind.ESNext },
-            }).outputText
-          : frt(contents);
-
-        const hash: string = md5(contents);
-
-        const parsed = espree.parse(jsFile, {
+        const { contents, hash, entry } = file;
+        const parsedFile = espree.parse(contents, {
           ecmaVersion: 12,
           sourceType: "module",
           ecmaFeatures: {
@@ -111,51 +167,56 @@ async function createModuleRegistry(
         }) as Estree.Program;
 
         const importsAndExports: Array<Estree.ModuleDeclaration> =
-          parsed.body.filter((node) =>
+          parsedFile.body.filter((node) =>
             isModuleDeclaration(node)
           ) as Array<Estree.ModuleDeclaration>;
 
-        const imports: Registry["imports"] = (
+        const imports: SuccessfulRegistry["imports"] = (
           importsAndExports.filter(({ type }) =>
             importTypes.includes(type)
           ) as Array<Estree.ImportDeclaration>
         )
           .map((node) => {
-            const { type } = node;
-            const path = (node.source.value?.toString() || "").replace(
+            const { type, source, specifiers } = node;
+            const nodePath = (source.value?.toString() || "").replace(
               basePath,
               ""
             );
-            const fileName = getFileNameFromPath(path);
-            return node.specifiers.map((specifier) => {
+
+            const joinedPath = isRelativePath(nodePath)
+              ? path.join(entry.relativeDirectory, nodePath)
+              : null;
+
+            const from = joinedPath || nodePath;
+
+            console.debug(from);
+
+            return specifiers.map((specifier) => {
               switch (specifier.type) {
                 case "ImportDefaultSpecifier":
                   return {
                     name: "default",
                     type,
-                    path,
-                    fileName,
+                    from,
                   };
                 case "ImportSpecifier":
                   return {
                     name: specifier.imported.name,
                     type,
-                    path,
-                    fileName,
+                    from,
                   };
                 case "ImportNamespaceSpecifier":
                   return {
                     name: "all",
                     type,
-                    path,
-                    fileName,
+                    from,
                   };
               }
             });
           })
           .flat(100);
 
-        const exports: Registry["exports"] = (
+        const exports: SuccessfulRegistry["exports"] = (
           (
             importsAndExports.filter(({ type }) =>
               exportTypes.includes(type)
@@ -210,27 +271,22 @@ async function createModuleRegistry(
                   };
               }
             })
-            .filter((a) => !!a) as Registry["exports"]
+            .filter((a) => !!a) as SuccessfulRegistry["exports"]
         ).flat(100);
 
         return {
           id: "id",
-          path: relativePath,
+          path: entry.fullPath,
           fileName,
           hash,
           imports,
           exports,
           ok: true,
+          entry,
         };
       } catch (e) {
-        console.error(`Errored on file ${fullPath}, ${e}`);
+        console.error(`Errored on file ${file.entry.fullPath}, ${e}`);
         return {
-          id: "id",
-          path: fullPath,
-          fileName,
-          hash: "",
-          imports: [],
-          exports: [],
           ok: e,
         };
       }
@@ -251,7 +307,25 @@ interface Link {
   toPort: string;
 }
 
-const convertRegistriesToNodes = (registries: Array<Registry>): Array<Node> =>
+interface Field {
+  name: string;
+  color: string;
+  figure: string;
+}
+
+const sortIgnoreCase = (strA: Field, strB: Field) => {
+  if (strA.name.toLowerCase() < strB.name.toLowerCase()) {
+    return -1;
+  } else if (strA.name.toLowerCase() > strB.name.toLowerCase()) {
+    return 1;
+  } else {
+    return 0;
+  }
+};
+
+const convertRegistriesToNodes = (
+  registries: Array<SuccessfulRegistry>
+): Array<Node> =>
   registries.map((registry) => {
     const fields = registry.exports
       .map((exp) => ({
@@ -259,64 +333,68 @@ const convertRegistriesToNodes = (registries: Array<Registry>): Array<Node> =>
         color: "#00BCF2",
         figure: "TriangleLeft",
       }))
-      .concat(
-        registry.imports.map((imp) => ({
-          name: imp.name,
-          color: "#F25022",
-          figure: "TriangleRight",
-        }))
-      );
+      .sort(sortIgnoreCase)
+      // .concat(
+      //   registry.imports
+      //     .map((imp) => ({
+      //       name: imp.name,
+      //       color: "#F25022",
+      //       figure: "TriangleRight",
+      //     }))
+      //     .sort(sortIgnoreCase)
+      // )
+      .concat({ name: "imports", color: "green", figure: "square" });
     return {
-      key: registry.fileName.replace(
-        new RegExp(path.extname(registry.fileName)),
-        ""
-      ),
+      key: registry.entry.relativePathWOExt,
       fields,
       links: [],
     };
   });
 
-const convertRegistriesToLinks = (registries: Array<Registry>): Array<Link> =>
+const convertRegistriesToLinks = (
+  registries: Array<SuccessfulRegistry>
+): Array<Link> =>
   registries
     .map((registry) =>
       registry.imports.map((imp) => ({
-        from: imp.fileName,
-        fromPort: imp.name,
-        to: registry.fileName.replace(
-          new RegExp(path.extname(registry.fileName)),
-          ""
-        ),
+        to: imp.from,
         toPort: imp.name,
+        from: registry.entry.relativePathWOExt,
+        fromPort: "imports",
       }))
     )
     .flat(100);
 
-const replaceInFile = async (nodes: Array<Node>, links: Array<Link>) => {
+const replaceInFile = async (
+  nodes: Array<Node>,
+  links: Array<Link>,
+  registries: Array<Registry>
+) => {
   const data = await fsPromises.readFile("index.html", "utf8");
+  const result = data
+    .replace(/NODE_DATA_ARRAY_HERE/, JSON.stringify(nodes, undefined, 2))
+    .replace(/LINK_DATA_ARRAY_HERE/, JSON.stringify(links, undefined, 2))
+    .replace(/ALL_REGISTRIES/, JSON.stringify(registries));
 
-  const result = data.replace(
-    /NODE_DATA_ARRAY_HERE/,
-    JSON.stringify(nodes, undefined, 2)
-  );
-  const result2 = result.replace(
-    /LINK_DATA_ARRAY_HERE/,
-    JSON.stringify(links, undefined, 2)
-  );
-
-  fsPromises.writeFile("tree.html", result2, "utf8");
+  await fsPromises.writeFile("tree.html", result, "utf8");
 };
 
 (async function main() {
   const argv = await parser.argv;
-  const directories = await walkDir(argv.path, argv.exclude);
+  const directoriesEntries = await walkDir(argv.path, argv.exclude, argv.path);
+  const files = (
+    await Promise.all(directoriesEntries.map((entry) => getFile(entry)))
+  ).filter((f) => !!f) as File[];
+
   const registries: Array<Registry | undefined> = await createModuleRegistry(
-    directories,
+    files,
     argv.path
   );
-  const happyRegistries: Array<Registry> = registries.filter(
+  const happyRegistries: Array<SuccessfulRegistry> = registries.filter(
     (reg) => !!reg && !(reg.ok instanceof Error)
-  ) as Array<Registry>;
+  ) as Array<SuccessfulRegistry>;
+
   const nodes = convertRegistriesToNodes(happyRegistries);
   const links = convertRegistriesToLinks(happyRegistries);
-  await replaceInFile(nodes, links);
+  await replaceInFile(nodes, links, happyRegistries);
 })();
