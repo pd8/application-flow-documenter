@@ -55,16 +55,23 @@ const convertRegistriesToNodes = (
         figure: "TriangleLeft",
       }))
       .sort(sortIgnoreCase)
-      // .concat(
-      //   registry.imports
-      //     .map((imp) => ({
-      //       name: imp.name,
-      //       color: "#F25022",
-      //       figure: "TriangleRight",
-      //     }))
-      //     .sort(sortIgnoreCase)
-      // )
-      .concat({ name: "imports", color: "green", figure: "square" });
+      .concat(
+        registry.imports
+          .map((imp) => ({
+            name: imp.name,
+            color: "#F25022",
+            figure: "TriangleRight",
+          }))
+          .sort(sortIgnoreCase)
+      )
+      .concat(
+        registry.functions.map((name: string) => ({
+          name,
+          color: "pink",
+          figure: "circle",
+        }))
+      );
+    // .concat({ name: "imports", color: "green", figure: "square" });
     return {
       key: registry.entry.relativePathWOExt,
       fields,
@@ -111,6 +118,7 @@ const replaceInFile = async (
     files,
     argv.path
   );
+
   const happyRegistries: Array<SuccessfulRegistry> = registries.filter(
     (reg) => !!reg && !(reg.ok instanceof Error)
   ) as Array<SuccessfulRegistry>;

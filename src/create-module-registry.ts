@@ -32,7 +32,7 @@ const isExport = (
   | Estree.ExportAllDeclaration
   | Estree.ExportNamedDeclaration
   | Estree.ExportDefaultDeclaration => {
-  return importTypes.includes(node.type);
+  return exportTypes.includes(node.type);
 };
 
 const getFormattedImports = (
@@ -42,36 +42,32 @@ const getFormattedImports = (
 ): SuccessfulRegistry["imports"] => {
   return imports
     .map((node) => {
-      const { type, source, specifiers } = node;
+      const { source, specifiers } = node;
       const nodePath = (source.value?.toString() || "").replace(basePath, "");
 
+      // TODO: add alias support
       const joinedPath = isRelativePath(nodePath)
         ? path.join(entry.relativeDirectory, nodePath)
         : null;
 
       const from = joinedPath || nodePath;
 
-      console.debug(from);
-
       return specifiers.map((specifier) => {
         switch (specifier.type) {
           case "ImportDefaultSpecifier":
             return {
-              name: "default",
-              type,
               from,
+              name: "default",
             };
           case "ImportSpecifier":
             return {
-              name: specifier.imported.name,
-              type,
               from,
+              name: specifier.imported.name,
             };
           case "ImportNamespaceSpecifier":
             return {
-              name: "all",
-              type,
               from,
+              name: "all",
             };
         }
       });
@@ -133,6 +129,29 @@ const getFormattedExports = (
   ).flat(100);
 };
 
+const functionTypes = [
+  "FunctionDeclaration",
+  "FunctionExpression",
+  "ArrowFunctionExpression",
+];
+
+const getFunctions = (node: Estree.Program["body"]): Array<string> => {
+  return (
+    node.filter(({ type }) =>
+      functionTypes.includes(type)
+    ) as Array<Estree.Function>
+  ).map((node) => {
+    switch (node.type) {
+      case "FunctionDeclaration":
+        return node.id?.name || "UNNAMED_FUNCTION_DECLARATION";
+      case "FunctionExpression":
+        return "FUNCTION_EXPRESSION";
+      case "ArrowFunctionExpression":
+        return "ARROW_FUNCTION_EXPRESSION";
+    }
+  });
+};
+
 export const createModuleRegistry = async (
   files: Array<File>,
   basePath: string
@@ -151,34 +170,42 @@ export const createModuleRegistry = async (
           },
         }) as Estree.Program;
 
-        const importsAndExports: Array<Estree.ModuleDeclaration> =
-          parsedFile.body.filter((node) =>
-            isModuleDeclaration(node)
-          ) as Array<Estree.ModuleDeclaration>;
+        // const importsAndExports: Array<Estree.ModuleDeclaration> =
+        //   parsedFile.body.filter((node) =>
+        //     isModuleDeclaration(node)
+        //   ) as Array<Estree.ModuleDeclaration>;
 
-        const imports: SuccessfulRegistry["imports"] = getFormattedImports(
-          importsAndExports.filter((node) =>
-            isImport(node)
-          ) as Array<Estree.ImportDeclaration>,
-          basePath,
-          entry
-        );
+        // console.debug(functions);
 
-        const exports: SuccessfulRegistry["exports"] = getFormattedExports(
-          importsAndExports.filter((node) => isExport(node)) as Array<
-            | Estree.ExportAllDeclaration
-            | Estree.ExportNamedDeclaration
-            | Estree.ExportDefaultDeclaration
-          >
-        );
+        // const imports: SuccessfulRegistry["imports"] = getFormattedImports(
+        //   importsAndExports.filter((node) =>
+        //     isImport(node)
+        //   ) as Array<Estree.ImportDeclaration>,
+        //   basePath,
+        //   entry
+        // );
+
+        // const allExports = importsAndExports.filter((node) =>
+        //   isExport(node)
+        // ) as Array<
+        //   | Estree.ExportAllDeclaration
+        //   | Estree.ExportNamedDeclaration
+        //   | Estree.ExportDefaultDeclaration
+        // >;
+
+        // const exports: SuccessfulRegistry["exports"] =
+        //   getFormattedExports(allExports);
+
+        const functions = getFunctions(parsedFile.body);
 
         return {
           id: "id",
           path: entry.fullPath,
           fileName,
           hash,
-          imports,
-          exports,
+          imports: [],
+          exports: [],
+          functions,
           ok: true,
           entry,
         };

@@ -43,3 +43,23 @@ export const walkDir = async (
     .flat(100)
     .filter(({ fullPath }) => !fullPath.includes(exclusionString));
 };
+
+// ext: ".js"
+// fileName: "ReactAct.js"
+// fileNameWOExt: "ReactAct"
+// fullDirectory: "../react/packages/react/src/"
+// fullPath: "../react/packages/react/src/ReactAct.js"
+// fullPathWOExt: "../react/packages/react/src/ReactAct"
+// relativeDirectory: ""
+// relativePath: "ReactAct.js"
+// relativePathWOExt: "ReactAct"
+
+// ext: ".js"
+// fileName: "ReactJSX.js"
+// fileNameWOExt: "ReactJSX"
+// fullDirectory: "../react/packages/react/src/jsx/"
+// fullPath: "../react/packages/react/src/jsx/ReactJSX.js"
+// fullPathWOExt: "../react/packages/react/src/jsx/ReactJSX"
+// relativeDirectory: "jsx/"
+// relativePath: "jsx/ReactJSX.js"
+// relativePathWOExt: "jsx/ReactJSX"

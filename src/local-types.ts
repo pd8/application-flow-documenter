@@ -20,9 +20,9 @@ export interface SuccessfulRegistry {
   exports: Array<{ name: string; type: string }>;
   imports: Array<{
     name: string;
-    type: string;
     from: string;
   }>;
+  functions: Array<string>;
   entry: Entry;
   ok: true;
 }
