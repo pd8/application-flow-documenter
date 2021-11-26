@@ -1,9 +1,9 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import * as fsPromises from "fs/promises";
-import { createModuleRegistry } from "./create-module-registry";
-import { createFile } from "./create-file";
-import { walkDir } from "./walk-dir";
+import { createModuleRegistry } from "./create-module-registry.js";
+import { createFile } from "./create-file.js";
+import { walkDir } from "./walk-dir.js";
 import type { SuccessfulRegistry, Registry, File } from "./local-types";
 
 const parser = yargs(hideBin(process.argv)).options({
@@ -91,7 +91,7 @@ const replaceInFile = async (
   links: Array<Link>,
   registries: Array<Registry>
 ) => {
-  const data = await fsPromises.readFile("index.html", "utf8");
+  const data = await fsPromises.readFile("./src/index.html", "utf8");
   const result = data
     .replace(/NODE_DATA_ARRAY_HERE/, JSON.stringify(nodes, undefined, 2))
     .replace(/LINK_DATA_ARRAY_HERE/, JSON.stringify(links, undefined, 2))

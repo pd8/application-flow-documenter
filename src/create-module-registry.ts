@@ -1,8 +1,8 @@
-import * as Estree from "./types";
 import * as path from "path";
-import type { Entry, SuccessfulRegistry, Registry, File } from "./local-types";
 //@ts-ignore
 import * as espree from "espree";
+import * as Estree from "./types";
+import type { Entry, SuccessfulRegistry, Registry, File } from "./local-types";
 
 const importTypes = ["ImportDeclaration"];
 

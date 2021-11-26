@@ -1,8 +1,10 @@
 {
   "compilerOptions": {
     "strict": true,
+    "esModuleInterop": true,
     "target": "es2020",
-    "module": "es6",
+    "module": "ESNEXT",
+    "moduleResolution": "node",
     "declaration": true,
     "noImplicitAny": true,
     "removeComments": true,

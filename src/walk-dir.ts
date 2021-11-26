@@ -1,7 +1,8 @@
 import * as fsPromises from "fs/promises";
 import * as path from "path";
 import * as fs from "fs";
-import type { Entry, File } from "./local-types";
+import type { Entry } from "./local-types";
+
 const removeExtension = (input: string, ext: string): string =>
   input.replace(new RegExp(ext + "$"), "");
 
