@@ -15,5 +15,5 @@
     "outDir": "./dist"
   },
   "exclude": [],
-  "files": ["index.ts", "types.ts"]
+  "include": ["src/**/*"],
 }
