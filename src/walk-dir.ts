@@ -8,7 +8,7 @@ const removeExtension = (input: string, ext: string): string =>
 
 export const walkDir = async (
   dir: string,
-  exclusionString: string,
+  exclusionRegex: RegExp,
   pathToDir: string
 ): Promise<Array<Entry>> => {
   const dirEntries = await fsPromises.readdir(dir);
@@ -17,7 +17,7 @@ export const walkDir = async (
       const dirPath = path.join(dir, entry);
       const isDirectory = fs.statSync(dirPath).isDirectory();
       if (isDirectory) {
-        return walkDir(dirPath, exclusionString, pathToDir);
+        return walkDir(dirPath, exclusionRegex, pathToDir);
       } else {
         const ext = path.extname(dirPath);
         const fullPath = dirPath;
@@ -41,7 +41,7 @@ export const walkDir = async (
   );
   return results
     .flat(100)
-    .filter(({ fullPath }) => !fullPath.includes(exclusionString));
+    .filter(({ fullPath }) => !exclusionRegex.test(fullPath));
 };
 
 // ext: ".js"

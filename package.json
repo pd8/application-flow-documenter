@@ -7,8 +7,8 @@
     "dev:watch": "tsc -w",
     "build": "tsc -b",
     "build:run": "npm run build && npm run start",
-    "a": "node --loader ts-node/esm ./src/index.ts --path=../react/packages/react/src/ --exclude=test",
-    "start": "node ./dist/index.js --path=../react/packages/react/src/ --exclude=test"
+    "a": "node --loader ts-node/esm ./src/index.ts --path=../react/packages/src/",
+    "start": "node ./dist/index.js --path=../react/packages/react/src/"
   },
   "author": "",
   "license": "ISC",

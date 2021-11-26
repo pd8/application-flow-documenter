@@ -8,7 +8,7 @@ import type { SuccessfulRegistry, Registry, File } from "./local-types";
 
 const parser = yargs(hideBin(process.argv)).options({
   path: { type: "string", demandOption: true },
-  exclude: { type: "string", default: "tests" },
+  exclude: { type: "string", default: "test|node_modules|dist|fixtures" },
 });
 
 const getFileNameFromPath = (path: string): string => {
@@ -109,7 +109,12 @@ const replaceInFile = async (
 
 (async function main() {
   const argv = await parser.argv;
-  const directoriesEntries = await walkDir(argv.path, argv.exclude, argv.path);
+  const exclusionRegex = new RegExp(argv.exclude);
+  const directoriesEntries = await walkDir(
+    argv.path,
+    exclusionRegex,
+    argv.path
+  );
   const files = (
     await Promise.all(directoriesEntries.map((entry) => createFile(entry)))
   ).filter((f) => !!f) as File[];

@@ -170,12 +170,10 @@ export const createModuleRegistry = async (
           },
         }) as Estree.Program;
 
-        // const importsAndExports: Array<Estree.ModuleDeclaration> =
-        //   parsedFile.body.filter((node) =>
-        //     isModuleDeclaration(node)
-        //   ) as Array<Estree.ModuleDeclaration>;
-
-        // console.debug(functions);
+        const importsAndExports: Array<Estree.ModuleDeclaration> =
+          parsedFile.body.filter((node) =>
+            isModuleDeclaration(node)
+          ) as Array<Estree.ModuleDeclaration>;
 
         // const imports: SuccessfulRegistry["imports"] = getFormattedImports(
         //   importsAndExports.filter((node) =>
@@ -185,16 +183,16 @@ export const createModuleRegistry = async (
         //   entry
         // );
 
-        // const allExports = importsAndExports.filter((node) =>
-        //   isExport(node)
-        // ) as Array<
-        //   | Estree.ExportAllDeclaration
-        //   | Estree.ExportNamedDeclaration
-        //   | Estree.ExportDefaultDeclaration
-        // >;
+        const allExports = importsAndExports.filter((node) =>
+          isExport(node)
+        ) as Array<
+          | Estree.ExportAllDeclaration
+          | Estree.ExportNamedDeclaration
+          | Estree.ExportDefaultDeclaration
+        >;
 
-        // const exports: SuccessfulRegistry["exports"] =
-        //   getFormattedExports(allExports);
+        const exports: SuccessfulRegistry["exports"] =
+          getFormattedExports(allExports);
 
         const functions = getFunctions(parsedFile.body);
 
@@ -204,7 +202,7 @@ export const createModuleRegistry = async (
           fileName,
           hash,
           imports: [],
-          exports: [],
+          exports,
           functions,
           ok: true,
           entry,
