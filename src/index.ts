@@ -8,7 +8,10 @@ import type { SuccessfulRegistry, Registry, File } from "./local-types";
 
 const parser = yargs(hideBin(process.argv)).options({
   path: { type: "string", demandOption: true },
-  exclude: { type: "string", default: "test|node_modules|dist|fixtures" },
+  exclude: {
+    type: "string",
+    default: "test|node_modules|dist|fixtures|spec|snap",
+  },
 });
 
 const getFileNameFromPath = (path: string): string => {
@@ -48,49 +51,64 @@ const convertRegistriesToNodes = (
   registries: Array<SuccessfulRegistry>
 ): Array<Node> =>
   registries.map((registry) => {
+    // console.debug(!!registry);
     const fields = registry.exports
-      .map((exp) => ({
-        name: exp.name,
-        color: "#00BCF2",
-        figure: "TriangleLeft",
-      }))
+      .map((exp) => {
+        if (!exp) {
+          // console.log("no exp", registry);
+          return { name: "failed", color: "red", figure: "circle" };
+        }
+        return {
+          name: exp.name,
+          color: "#00BCF2",
+          figure: "TriangleLeft",
+        };
+      })
       .sort(sortIgnoreCase)
-      .concat(
-        registry.imports
-          .map((imp) => ({
-            name: imp.name,
-            color: "#F25022",
-            figure: "TriangleRight",
-          }))
-          .sort(sortIgnoreCase)
-      )
-      .concat(
-        registry.functions.map((name: string) => ({
-          name,
-          color: "pink",
-          figure: "circle",
-        }))
-      );
-    // .concat({ name: "imports", color: "green", figure: "square" });
+      // .concat(
+      //   registry.imports
+      //     .map((imp) => ({
+      //       name: imp.name,
+      //       color: "#F25022",
+      //       figure: "TriangleRight",
+      //     }))
+      //     .sort(sortIgnoreCase)
+      // )
+      // .concat(
+      //   registry.functions.map((name: string) => ({
+      //     name,
+      //     color: "pink",
+      //     figure: "circle",
+      //   }))
+      // );
+      .concat({ name: "imports", color: "green", figure: "square" })
+      .concat({ name: "all-exports", color: "orange", figure: "TriangleLeft" });
     return {
       key: registry.entry.relativePathWOExt,
       fields,
       links: [],
     };
   });
-
 const convertRegistriesToLinks = (
   registries: Array<SuccessfulRegistry>
 ): Array<Link> =>
   registries
-    .map((registry) =>
-      registry.imports.map((imp) => ({
-        to: imp.from,
-        toPort: imp.name,
-        from: registry.entry.relativePathWOExt,
-        fromPort: "imports",
-      }))
-    )
+    .map((registry) => {
+      return registry.imports.map((imp) => {
+        console.debug(
+          registry.entry.relativePathWOExt,
+          "             ",
+          imp.from,
+          imp.name
+        );
+        return {
+          to: imp.from,
+          toPort: imp.name,
+          from: registry.entry.relativePathWOExt,
+          fromPort: "imports",
+        };
+      });
+    })
     .flat(100);
 
 const replaceInFile = async (

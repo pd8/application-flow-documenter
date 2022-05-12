@@ -43,13 +43,18 @@ const getFormattedImports = (
   return imports
     .map((node) => {
       const { source, specifiers } = node;
-      const nodePath = (source.value?.toString() || "").replace(basePath, "");
+      let nodePath = (source.value?.toString() || "").replace(basePath, "");
+      if (nodePath === ".") {
+        nodePath = "./index";
+      }
 
-      // TODO: add alias support
+      // TODO: add alias support, add . import support
+
       const joinedPath = isRelativePath(nodePath)
         ? path.join(entry.relativeDirectory, nodePath)
         : null;
 
+      console.debug(entry.relativeDirectory, joinedPath, nodePath);
       const from = joinedPath || nodePath;
 
       return specifiers.map((specifier) => {
@@ -67,7 +72,7 @@ const getFormattedImports = (
           case "ImportNamespaceSpecifier":
             return {
               from,
-              name: "all",
+              name: "all-exports",
             };
         }
       });
@@ -160,6 +165,7 @@ export const createModuleRegistry = async (
     files.map(async (file) => {
       const { fileNameWOExt: fileName } = file.entry;
       try {
+        // console.debug("0");
         const { contents, hash, entry } = file;
         const parsedFile = espree.parse(contents, {
           ecmaVersion: 12,
@@ -170,18 +176,22 @@ export const createModuleRegistry = async (
           },
         }) as Estree.Program;
 
+        // console.debug("a");
+
         const importsAndExports: Array<Estree.ModuleDeclaration> =
           parsedFile.body.filter((node) =>
             isModuleDeclaration(node)
           ) as Array<Estree.ModuleDeclaration>;
 
-        // const imports: SuccessfulRegistry["imports"] = getFormattedImports(
-        //   importsAndExports.filter((node) =>
-        //     isImport(node)
-        //   ) as Array<Estree.ImportDeclaration>,
-        //   basePath,
-        //   entry
-        // );
+        const imports: SuccessfulRegistry["imports"] = getFormattedImports(
+          importsAndExports.filter((node) =>
+            isImport(node)
+          ) as Array<Estree.ImportDeclaration>,
+          basePath,
+          entry
+        );
+
+        // console.debug(imports);
 
         const allExports = importsAndExports.filter((node) =>
           isExport(node)
@@ -191,17 +201,23 @@ export const createModuleRegistry = async (
           | Estree.ExportDefaultDeclaration
         >;
 
+        // console.debug("b");
+
         const exports: SuccessfulRegistry["exports"] =
           getFormattedExports(allExports);
 
+        // console.debug("c");
+
         const functions = getFunctions(parsedFile.body);
+
+        // console.debug("d");
 
         return {
           id: "id",
           path: entry.fullPath,
           fileName,
           hash,
-          imports: [],
+          imports,
           exports,
           functions,
           ok: true,

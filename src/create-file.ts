@@ -24,13 +24,28 @@ export const createFile = async (entry: Entry): Promise<File | null> => {
 
   const isFlow = isFlowFile(contents);
 
-  const transpiledContents = isTS
-    ? ts.transpileModule(contents, {
-        compilerOptions: { module: ts.ModuleKind.ESNext },
-      }).outputText
-    : isFlow
-    ? frt(contents)
-    : contents;
+  const deFlowedJS = isFlow ? frt(contents) : contents;
+
+  const transpiledContents = ts.transpileModule(deFlowedJS, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2015,
+      target: ts.ScriptTarget.ES2015,
+      jsx: ts.JsxEmit.Preserve,
+      checkJs: true,
+      paths: {
+        "sharedLib/*": ["app/lib/*"],
+        "adminShared/*": ["./app/bundles/admin/*"],
+        "@deliveroo/components": [
+          "./node_modules/@deliveroo/tools-component-library/dist/components",
+        ],
+        "@deliveroo/styles": [
+          "./node_modules/@deliveroo/tools-component-library/dist",
+        ],
+      },
+    },
+  }).outputText;
+
+  // console.debug(transpiledContents);
 
   return { contents: transpiledContents, hash, entry };
 };

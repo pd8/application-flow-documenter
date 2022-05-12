@@ -7,8 +7,7 @@
     "dev:watch": "tsc -w",
     "build": "tsc -b",
     "build:run": "npm run build && npm run start",
-    "a": "node --loader ts-node/esm ./src/index.ts --path=../react/packages/src/",
-    "start": "node ./dist/index.js --path=../react/packages/react/src/"
+    "a": "node --loader ts-node/esm ./src/index.ts --path=/Users/pip.dunne/dev/rider-portal/client/app/bundles/admin/modules/agency/"
   },
   "author": "",
   "license": "ISC",
