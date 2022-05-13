@@ -14,11 +14,19 @@ const isJavaScriptFile = (ext: string): boolean =>
   [".js", ".jsx", ".cjs", ".mjs"].includes(ext);
 const isFlowFile = (fileBody: string): boolean => fileBody.includes("@flow");
 
+const colourCodeBoolean = (val: boolean, name: string) =>
+  `${val ? "\x1b[32m" : "\x1b[31m"}${name}\x1b[0m`;
+
 export const createFile = async (entry: Entry): Promise<File | null> => {
   const fileExt = path.extname(entry.fullPath);
   const isTS = isTypeScriptFile(fileExt);
   const isJS = isJavaScriptFile(fileExt);
-  if (!isJS && !isTS) return null;
+  if (!isJS && !isTS) {
+    console.info(
+      `\x1b[36m${entry.relativePath}\x1b[0m not parsed, due to not having a JS or TS extension`
+    );
+    return null;
+  }
   const contents = await fsPromises.readFile(entry.fullPath, "utf-8");
   const hash: string = md5(contents);
 
@@ -45,7 +53,16 @@ export const createFile = async (entry: Entry): Promise<File | null> => {
     },
   }).outputText;
 
-  // console.debug(transpiledContents);
+  console.info(
+    `${colourCodeBoolean(isFlow, "Flow")}, ${colourCodeBoolean(
+      isTS,
+      "Typescript"
+    )}, ${colourCodeBoolean(isJS, "Javascript")}: \x1b[36m${
+      entry.relativePath
+    }\x1b[0m`
+  );
+
+  // console.debug(transpiledContents, "\n\n");
 
   return { contents: transpiledContents, hash, entry };
 };

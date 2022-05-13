@@ -2,7 +2,8 @@ import * as path from "path";
 //@ts-ignore
 import * as espree from "espree";
 import * as Estree from "./types";
-import type { Entry, SuccessfulRegistry, Registry, File } from "./local-types";
+import { v4 as uuidv4 } from "uuid";
+import type { Entry, Registry, File } from "./local-types";
 
 const importTypes = ["ImportDeclaration"];
 
@@ -35,103 +36,93 @@ const isExport = (
   return exportTypes.includes(node.type);
 };
 
+const registry2: Record<
+  string,
+  Record<string, { name: string; key: string; importedBy: Array<string> }>
+> = {};
+
+const links: Array<{
+  from: string;
+  fromPort: string;
+  to: string;
+  toPort: string;
+}> = [];
+
 const getFormattedImports = (
   imports: Array<Estree.ImportDeclaration>,
   basePath: string,
   entry: Entry
-): SuccessfulRegistry["imports"] => {
-  return imports
-    .map((node) => {
-      const { source, specifiers } = node;
-      let nodePath = (source.value?.toString() || "").replace(basePath, "");
-      if (nodePath === ".") {
-        nodePath = "./index";
+): void => {
+  console.info(`\x1b[36m${entry.relativePath}\x1b[0m`);
+  imports.forEach((node) => {
+    const { source, specifiers } = node;
+    let nodePath = (source.value?.toString() || "").replace(basePath, "");
+    if (nodePath === ".") {
+      nodePath = "./index";
+    }
+
+    const joinedPath = isRelativePath(nodePath)
+      ? path.join(entry.relativeDirectory, nodePath)
+      : "";
+
+    // console.debug(entry.relativeDirectory, joinedPath, nodePath);
+    const from = joinedPath || nodePath;
+
+    const imps = specifiers.map((specifier) => {
+      let name;
+      switch (specifier.type) {
+        case "ImportDefaultSpecifier":
+          name = "default";
+          break;
+
+        case "ImportSpecifier":
+          name = specifier.imported.name;
+          break;
+        case "ImportNamespaceSpecifier":
+          name = "all-exports";
+          break;
       }
 
-      // TODO: add alias support, add . import support
-
-      const joinedPath = isRelativePath(nodePath)
-        ? path.join(entry.relativeDirectory, nodePath)
-        : null;
-
-      console.debug(entry.relativeDirectory, joinedPath, nodePath);
-      const from = joinedPath || nodePath;
-
-      return specifiers.map((specifier) => {
-        switch (specifier.type) {
-          case "ImportDefaultSpecifier":
-            return {
-              from,
-              name: "default",
-            };
-          case "ImportSpecifier":
-            return {
-              from,
-              name: specifier.imported.name,
-            };
-          case "ImportNamespaceSpecifier":
-            return {
-              from,
-              name: "all-exports",
-            };
+      if (registry2[from]) {
+        if (registry2[from][name]) {
+          registry2[from][name].importedBy.push(entry.relativePath);
+        } else {
+          registry2[from][name] = {
+            name,
+            key: uuidv4(),
+            importedBy: [entry.relativePath],
+          };
         }
+      } else {
+        registry2[from] = {
+          [name]: { name, key: uuidv4(), importedBy: [entry.relativePath] },
+        };
+      }
+
+      links.push({
+        to: entry.relativePathWOExt,
+        toPort: "imports",
+        from,
+        fromPort: name,
       });
-    })
-    .flat(100);
-};
 
-const getFormattedExports = (
-  exports: Array<
-    | Estree.ExportAllDeclaration
-    | Estree.ExportNamedDeclaration
-    | Estree.ExportDefaultDeclaration
-  >
-): SuccessfulRegistry["exports"] => {
-  return (
-    exports
-      .map((node) => {
-        const { type } = node;
-        switch (node.type) {
-          case "ExportAllDeclaration":
-            return { type, name: "all" };
-          case "ExportNamedDeclaration":
-            if (node.specifiers.length) {
-              return node.specifiers.map((specifier) => {
-                return {
-                  name: specifier.exported.name,
-                  type,
-                };
-              });
-            } else if (node.declaration) {
-              if (
-                node.declaration.type === "FunctionDeclaration" &&
-                node.declaration.id
-              ) {
-                return {
-                  name: node.declaration.id.name,
-                  type,
-                };
-              } else if (node.declaration.type === "VariableDeclaration") {
-                return node.declaration.declarations.map((declaration) => {
-                  switch (declaration.id.type) {
-                    case "Identifier":
-                      return {
-                        name: declaration.id.name,
-                        type,
-                      };
-                  }
-                });
-              }
-            }
-          case "ExportDefaultDeclaration":
-            return {
-              name: "default",
-              type,
-            };
-        }
-      })
-      .filter((a) => !!a) as SuccessfulRegistry["exports"]
-  ).flat(100);
+      return {
+        from,
+        name,
+      };
+    });
+
+    if (!registry2[entry.relativePathWOExt]) {
+      console.log(entry.relativePathWOExt, "added to registry");
+      registry2[entry.relativePathWOExt] = {};
+    }
+
+    imps.forEach(({ from, name }) =>
+      console.info(
+        `\x1b[35m${name}\x1b[0m imported from \x1b[36m${from}\x1b[0m`
+      )
+    );
+  });
 };
 
 const functionTypes = [
@@ -163,10 +154,8 @@ export const createModuleRegistry = async (
 ): Promise<Array<Registry | undefined>> => {
   const res = await Promise.all(
     files.map(async (file) => {
-      const { fileNameWOExt: fileName } = file.entry;
       try {
-        // console.debug("0");
-        const { contents, hash, entry } = file;
+        const { contents, entry } = file;
         const parsedFile = espree.parse(contents, {
           ecmaVersion: 12,
           sourceType: "module",
@@ -176,53 +165,18 @@ export const createModuleRegistry = async (
           },
         }) as Estree.Program;
 
-        // console.debug("a");
-
         const importsAndExports: Array<Estree.ModuleDeclaration> =
           parsedFile.body.filter((node) =>
             isModuleDeclaration(node)
           ) as Array<Estree.ModuleDeclaration>;
 
-        const imports: SuccessfulRegistry["imports"] = getFormattedImports(
+        getFormattedImports(
           importsAndExports.filter((node) =>
             isImport(node)
           ) as Array<Estree.ImportDeclaration>,
           basePath,
           entry
         );
-
-        // console.debug(imports);
-
-        const allExports = importsAndExports.filter((node) =>
-          isExport(node)
-        ) as Array<
-          | Estree.ExportAllDeclaration
-          | Estree.ExportNamedDeclaration
-          | Estree.ExportDefaultDeclaration
-        >;
-
-        // console.debug("b");
-
-        const exports: SuccessfulRegistry["exports"] =
-          getFormattedExports(allExports);
-
-        // console.debug("c");
-
-        const functions = getFunctions(parsedFile.body);
-
-        // console.debug("d");
-
-        return {
-          id: "id",
-          path: entry.fullPath,
-          fileName,
-          hash,
-          imports,
-          exports,
-          functions,
-          ok: true,
-          entry,
-        };
       } catch (e) {
         console.error(`Errored on file ${file.entry.fullPath}, ${e}`);
         return {
@@ -233,3 +187,9 @@ export const createModuleRegistry = async (
   );
   return res;
 };
+
+export const getRegistry2 = () => {
+  console.log(registry2);
+  return registry2;
+};
+export const getLinks = () => links;

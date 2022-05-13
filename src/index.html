@@ -1,149 +1,215 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"/>
-<meta name="description" content="A diagram for displaying and editing the N to M relationships from one set of objects to another set of objects."/> 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.1.52/go-debug.min.js" integrity="sha512-EVALZ5jciAqhC7oOlUctDxnbjgiPlZGH7CzxbhlyPHsTybodw8HkMNsdSRyDI4/FqDJpxp2ZpWlKGwDQsMDu9w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="A diagram for displaying and editing the N to M relationships from one set of objects to another set of objects."
+    />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.1.52/go-debug.min.js"
+      integrity="sha512-EVALZ5jciAqhC7oOlUctDxnbjgiPlZGH7CzxbhlyPHsTybodw8HkMNsdSRyDI4/FqDJpxp2ZpWlKGwDQsMDu9w=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+  </head>
 
-</head>
+  <body>
+    <div
+      class="md:flex flex-col md:flex-row md:min-h-screen w-full max-w-screen-xl mx-auto"
+    >
+      <div
+        id="navSide"
+        class="flex flex-col w-full md:w-48 text-gray-700 bg-white flex-shrink-0"
+      ></div>
+      <!-- * * * * * * * * * * * * * -->
+      <!-- Start of GoJS sample code -->
 
-<body>
-  <div class="md:flex flex-col md:flex-row md:min-h-screen w-full max-w-screen-xl mx-auto">
-    <div id="navSide" class="flex flex-col w-full md:w-48 text-gray-700 bg-white flex-shrink-0"></div>
-    <!-- * * * * * * * * * * * * * -->
-    <!-- Start of GoJS sample code -->
-    
-    <div class="p-4 w-full">
-    <script id="code">
-    function init() {
-      console.log(ALL_REGISTRIES);
+      <div class="p-4 w-full">
+        <script id="code">
+          function init() {
+            // define a custom ForceDirectedLayout for this sample
+            class DemoForceDirectedLayout extends go.ForceDirectedLayout {
+              // Override the makeNetwork method to also initialize
+              // ForceDirectedVertex.isFixed from the corresponding Node.isSelected.
+              makeNetwork(coll) {
+                // call base method for standard behavior
+                const net = super.makeNetwork(coll);
+                net.vertexes.each((vertex) => {
+                  const node = vertex.node;
+                  if (node !== null) vertex.isFixed = node.isSelected;
+                });
+                return net;
+              }
+            }
+            // end DemoForceDirectedLayout class
 
-      var $ = go.GraphObject.make;  // for conciseness in defining templates
+            console.log(ALL_REGISTRIES);
 
-      myDiagram =
-        $(go.Diagram, "myDiagramDiv",
-          {
-            validCycle: go.Diagram.CycleNotDirected,  // don't allow loops
-            // For this sample, automatically show the state of the diagram's model on the page
-            layout: $(go.GridLayout, { comparer: go.GridLayout.smartComparer }),
-            "ModelChanged": function(e) {
-              if (e.isTransactionFinished) showModel();
-            },
-            "undoManager.isEnabled": true
-          });
+            var $ = go.GraphObject.make; // for conciseness in defining templates
 
-      // This template is a Panel that is used to represent each item in a Panel.itemArray.
-      // The Panel is data bound to the item object.
-      var fieldTemplate =
-        $(go.Panel, "TableRow",  // this Panel is a row in the containing Table
-          new go.Binding("portId", "name"),  // this Panel is a "port"
-          {
-            background: "transparent",  // so this port's background can be picked by the mouse
-            fromSpot: go.Spot.Right,  // links only go from the right side to the left side
-            toSpot: go.Spot.Left,
-            // allow drawing links from or to this port:
-            fromLinkable: true, toLinkable: true
-          },
-          $(go.Shape,
-            {
-              width: 12, height: 12, column: 0, strokeWidth: 2, margin: 4,
-              // but disallow drawing links from or to this shape:
-              fromLinkable: false, toLinkable: false
-            },
-            new go.Binding("figure", "figure"),
-            new go.Binding("fill", "color")),
-          $(go.TextBlock,
-            {
-              margin: new go.Margin(0, 5), column: 1, font: "bold 13px sans-serif",
-              alignment: go.Spot.Left,
-              // and disallow drawing links from or to this text:
-              fromLinkable: false, toLinkable: false
-            },
-            new go.Binding("text", "name")),
-          $(go.TextBlock,
-            { margin: new go.Margin(0, 5), column: 2, font: "13px sans-serif", alignment: go.Spot.Left },
-            new go.Binding("text", "info"))
-        );
-
-      // This template represents a whole "record".
-      myDiagram.nodeTemplate =
-        $(go.Node, "Auto",
-          { copyable: false, deletable: false },
-          new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
-          // this rectangular shape surrounds the content of the node
-          $(go.Shape,
-            { fill: "#EEEEEE" }),
-          // the content consists of a header and a list of items
-          $(go.Panel, "Vertical",
-            // this is the header for the whole node
-            $(go.Panel, "Auto",
-              { stretch: go.GraphObject.Horizontal },  // as wide as the whole node
-              $(go.Shape,
-                { fill: "#1570A6", stroke: null }),
-              $(go.TextBlock,
-                {
-                  alignment: go.Spot.Center,
-                  margin: 3,
-                  stroke: "white",
-                  textAlign: "center",
-                  font: "bold 12pt sans-serif"
-                },
-                new go.Binding("text", "key"))),
-            // this Panel holds a Panel for each item object in the itemArray;
-            // each item Panel is defined by the itemTemplate to be a TableRow in this Table
-            $(go.Panel, "Table",
-              {
-                padding: 2,
-                minSize: new go.Size(100, 10),
-                defaultStretch: go.GraphObject.Horizontal,
-                itemTemplate: fieldTemplate
+            myDiagram = $(go.Diagram, "myDiagramDiv", {
+              validCycle: go.Diagram.CycleNotDirected, // don't allow loops
+              // For this sample, automatically show the state of the diagram's model on the page
+              layout: $(go.LayeredDigraphLayout),
+              ModelChanged: function (e) {
+                if (e.isTransactionFinished) showModel();
               },
-              new go.Binding("itemArray", "fields")
-            )  // end Table Panel of items
-          )  // end Vertical Panel
-        );  // end Node
+              "undoManager.isEnabled": true,
+            });
 
-      myDiagram.linkTemplate =
-        $(go.Link,
-          {
-            relinkableFrom: true, relinkableTo: true, // let user reconnect links
-            toShortLength: 4, fromShortLength: 2
-          },
-          $(go.Shape, { strokeWidth: 1.5 }),
-          $(go.Shape, { toArrow: "Standard", stroke: null })
-        );
+            // This template is a Panel that is used to represent each item in a Panel.itemArray.
+            // The Panel is data bound to the item object.
+            var fieldTemplate = $(
+              go.Panel,
+              "TableRow", // this Panel is a row in the containing Table
+              new go.Binding("portId", "name"), // this Panel is a "port"
+              {
+                background: "transparent", // so this port's background can be picked by the mouse
+                fromSpot: go.Spot.Right, // links only go from the right side to the left side
+                toSpot: go.Spot.Left,
+                // allow drawing links from or to this port:
+                fromLinkable: true,
+                toLinkable: true,
+              },
+              $(
+                go.Shape,
+                {
+                  width: 12,
+                  height: 12,
+                  column: 0,
+                  strokeWidth: 2,
+                  margin: 4,
+                  // but disallow drawing links from or to this shape:
+                  fromLinkable: false,
+                  toLinkable: false,
+                },
+                new go.Binding("figure", "figure"),
+                new go.Binding("fill", "color")
+              ),
+              $(
+                go.TextBlock,
+                {
+                  margin: new go.Margin(0, 5),
+                  column: 1,
+                  font: "bold 13px sans-serif",
+                  alignment: go.Spot.Left,
+                  // and disallow drawing links from or to this text:
+                  fromLinkable: false,
+                  toLinkable: false,
+                },
+                new go.Binding("text", "name")
+              ),
+              $(
+                go.TextBlock,
+                {
+                  margin: new go.Margin(0, 5),
+                  column: 2,
+                  font: "13px sans-serif",
+                  alignment: go.Spot.Left,
+                },
+                new go.Binding("text", "info")
+              )
+            );
 
-      myDiagram.model =
-        $(go.GraphLinksModel,
-          {
-            copiesArrays: true,
-            copiesArrayObjects: true,
-            linkFromPortIdProperty: "fromPort",
-            linkToPortIdProperty: "toPort",
-            nodeDataArray: 
-            NODE_DATA_ARRAY_HERE,
-            linkDataArray: LINK_DATA_ARRAY_HERE
-          });
+            // This template represents a whole "record".
+            myDiagram.nodeTemplate = $(
+              go.Node,
+              "Auto",
+              { copyable: false, deletable: false },
+              new go.Binding("location", "loc", go.Point.parse).makeTwoWay(
+                go.Point.stringify
+              ),
+              // this rectangular shape surrounds the content of the node
+              $(go.Shape, { fill: "#EEEEEE" }),
+              // the content consists of a header and a list of items
+              $(
+                go.Panel,
+                "Vertical",
+                // this is the header for the whole node
+                $(
+                  go.Panel,
+                  "Auto",
+                  { stretch: go.GraphObject.Horizontal }, // as wide as the whole node
+                  $(go.Shape, { fill: "#1570A6", stroke: null }),
+                  $(
+                    go.TextBlock,
+                    {
+                      alignment: go.Spot.Center,
+                      margin: 3,
+                      stroke: "white",
+                      textAlign: "center",
+                      font: "bold 12pt sans-serif",
+                    },
+                    new go.Binding("text", "key")
+                  )
+                ),
+                // this Panel holds a Panel for each item object in the itemArray;
+                // each item Panel is defined by the itemTemplate to be a TableRow in this Table
+                $(
+                  go.Panel,
+                  "Table",
+                  {
+                    padding: 2,
+                    minSize: new go.Size(100, 10),
+                    defaultStretch: go.GraphObject.Horizontal,
+                    itemTemplate: fieldTemplate,
+                  },
+                  new go.Binding("itemArray", "fields")
+                ) // end Table Panel of items
+              ) // end Vertical Panel
+            ); // end Node
 
-      showModel();  // show the diagram's initial model
+            myDiagram.linkTemplate = $(
+              go.Link,
+              {
+                relinkableFrom: true,
+                relinkableTo: true, // let user reconnect links
+                toShortLength: 4,
+                fromShortLength: 2,
+              },
+              $(go.Shape, { strokeWidth: 1.5 }),
+              $(go.Shape, { toArrow: "Standard", stroke: null })
+            );
 
-      function showModel() {
-        document.getElementById("mySavedModel").textContent = myDiagram.model.toJson();
-      }
-    }
-    window.addEventListener('DOMContentLoaded', init);
-  </script>
+            myDiagram.model = $(go.GraphLinksModel, {
+              copiesArrays: true,
+              copiesArrayObjects: true,
+              linkFromPortIdProperty: "fromPort",
+              linkToPortIdProperty: "toPort",
+              nodeDataArray: NODE_DATA_ARRAY_HERE,
+              linkDataArray: LINK_DATA_ARRAY_HERE,
+            });
 
-<div id="sample">
-  <div id="myDiagramDiv" style="border: solid 1px black; width:100%; height:100vh"></div>
-  <div>
-    <textarea id="mySavedModel" style="width:100%;height:250px"></textarea>
-  </div>
-</div>
+            showModel(); // show the diagram's initial model
+
+            function showModel() {
+              document.getElementById("mySavedModel").textContent =
+                myDiagram.model.toJson();
+            }
+          }
+          window.addEventListener("DOMContentLoaded", init);
+        </script>
+
+        <div id="sample">
+          <div
+            id="myDiagramDiv"
+            style="border: solid 1px black; width: 100%; height: 100vh"
+          ></div>
+          <div>
+            <textarea
+              id="mySavedModel"
+              style="width: 100%; height: 250px"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+      <!-- * * * * * * * * * * * * * -->
+      <!--  End of GoJS sample code  -->
     </div>
-    <!-- * * * * * * * * * * * * * -->
-    <!--  End of GoJS sample code  -->
-  </div>
-</body>
+  </body>
 </html>

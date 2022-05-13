@@ -6,8 +6,8 @@
   "scripts": {
     "dev:watch": "tsc -w",
     "build": "tsc -b",
-    "build:run": "npm run build && npm run start",
-    "a": "node --loader ts-node/esm ./src/index.ts --path=/Users/pip.dunne/dev/rider-portal/client/app/bundles/admin/modules/agency/"
+    "dev": "npm run build && clear && npm run start",
+    "start": "node --loader ts-node/esm ./src/index.ts --path=/Users/pip.dunne/dev/rider-portal/client/app/bundles/admin/modules/agency/"
   },
   "author": "",
   "license": "ISC",
@@ -16,11 +16,13 @@
     "flow-remove-types": "^2.163.0",
     "md5": "^2.3.0",
     "typescript": "^4.4.4",
+    "uuid": "^8.3.2",
     "yargs": "^17.2.1"
   },
   "devDependencies": {
     "@types/esprima": "^4.0.3",
     "@types/node": "^16.11.10",
+    "@types/uuid": "^8.3.4",
     "@types/yargs": "^17.0.5",
     "ts-node": "^10.4.0"
   }
