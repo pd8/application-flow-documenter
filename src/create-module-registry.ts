@@ -36,10 +36,7 @@ const isExport = (
   return exportTypes.includes(node.type);
 };
 
-const registry2: Record<
-  string,
-  Record<string, { name: string; key: string; importedBy: Array<string> }>
-> = {};
+const registry2: Record<string, Record<string, Array<string>>> = {};
 
 const links: Array<{
   from: string;
@@ -65,10 +62,10 @@ const getFormattedImports = (
       ? path.join(entry.relativeDirectory, nodePath)
       : "";
 
-    // console.debug(entry.relativeDirectory, joinedPath, nodePath);
     const from = joinedPath || nodePath;
 
     const imps = specifiers.map((specifier) => {
+      const to = entry.relativePathWOExt.replace("/index", "");
       let name;
       switch (specifier.type) {
         case "ImportDefaultSpecifier":
@@ -85,22 +82,18 @@ const getFormattedImports = (
 
       if (registry2[from]) {
         if (registry2[from][name]) {
-          registry2[from][name].importedBy.push(entry.relativePath);
+          registry2[from][name].push(to);
         } else {
-          registry2[from][name] = {
-            name,
-            key: uuidv4(),
-            importedBy: [entry.relativePath],
-          };
+          registry2[from][name] = [to];
         }
       } else {
         registry2[from] = {
-          [name]: { name, key: uuidv4(), importedBy: [entry.relativePath] },
+          [name]: [to],
         };
       }
 
       links.push({
-        to: entry.relativePathWOExt,
+        to,
         toPort: "imports",
         from,
         fromPort: name,
@@ -113,8 +106,17 @@ const getFormattedImports = (
     });
 
     if (!registry2[entry.relativePathWOExt]) {
-      console.log(entry.relativePathWOExt, "added to registry");
-      registry2[entry.relativePathWOExt] = {};
+      if (entry.fileNameWOExt === "index") {
+        // console.log(entry);
+        registry2[entry.relativePath.replace("/" + entry.fileName, "")] = {};
+      } else {
+        console.log(
+          `\nnot in registry, not named index, adding ${entry.relativePathWOExt}\n`
+        );
+        registry2[entry.relativePathWOExt] = {};
+      }
+      // console.log(entry.fileNameWOExt, "added to registry");
+      // registry2[entry.relativePathWOExt] = {};
     }
 
     imps.forEach(({ from, name }) =>

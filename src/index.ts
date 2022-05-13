@@ -76,13 +76,13 @@ const convertRegistryToNodes = (
 const replaceInFile = async (
   nodes: Array<Node>,
   links: Array<Link>,
-  registries: Array<Registry>
+  registries: ReturnType<typeof getRegistry2>
 ) => {
   const data = await fsPromises.readFile("./src/index.html", "utf8");
   const result = data
-    .replace(/NODE_DATA_ARRAY_HERE/, JSON.stringify(nodes, undefined, 2))
-    .replace(/LINK_DATA_ARRAY_HERE/, JSON.stringify(links, undefined, 2))
-    .replace(/ALL_REGISTRIES/, JSON.stringify(registries));
+    .replace(/NODE_DATA_ARRAY_HERE/g, JSON.stringify(nodes, undefined, 2))
+    .replace(/LINK_DATA_ARRAY_HERE/g, JSON.stringify(links, undefined, 2))
+    .replace(/ALL_REGISTRIES/g, JSON.stringify(registries));
 
   await fsPromises.writeFile("tree.html", result, "utf8");
 };
@@ -102,6 +102,7 @@ const replaceInFile = async (
   await createModuleRegistry(files, argv.path);
 
   const links = getLinks();
-  const nodes = convertRegistryToNodes(getRegistry2(), links);
-  await replaceInFile(nodes, links, []);
+  const registry = getRegistry2();
+  const nodes = convertRegistryToNodes(registry, links);
+  await replaceInFile(nodes, links, registry);
 })();
