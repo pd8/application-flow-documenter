@@ -8,13 +8,13 @@ import {
 } from "./create-module-registry.js";
 import { createFile } from "./create-file.js";
 import { walkDir } from "./walk-dir.js";
-import type { Registry, File } from "./local-types";
+import type { File } from "./local-types";
 
 const parser = yargs(hideBin(process.argv)).options({
   path: { type: "string", demandOption: true },
   exclude: {
     type: "string",
-    default: "test|node_modules|dist|fixtures|spec|snap",
+    default: "test|node_modules|dist|fixtures|spec|snap|modules",
   },
 });
 
@@ -57,10 +57,9 @@ const convertRegistryToNodes = (
 ): Array<Node> => {
   return Object.entries(registry).map(([key, value]) => {
     const fields = [
-      { name: "imports", color: "green", figure: "TriangleRight" },
-      { name: "all-exports", color: "orange", figure: "TriangleLeft" },
-      ...Object.entries(value).map(([func, obj]) => {
-        return { name: func, color: "#00BCF2", figure: "TriangleLeft" };
+      { name: "imports", color: "green", figure: "TriangleLeft" },
+      ...Object.entries(value.functions).map(([func, obj]) => {
+        return { name: func, color: "#00BCF2", figure: "TriangleRight" };
       }),
     ];
     const links = allLinks.filter(({ from }) => from === key);
@@ -69,6 +68,7 @@ const convertRegistryToNodes = (
       key,
       fields,
       links,
+      color: !registry[key].meta.isRelative ? "#fcba03" : "#1570a6",
     };
   });
 };

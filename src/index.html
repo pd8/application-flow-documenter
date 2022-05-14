@@ -31,23 +31,61 @@
 
       <div class="p-4 w-full">
         <script id="code">
-          function init() {
-            // define a custom ForceDirectedLayout for this sample
-            class DemoForceDirectedLayout extends go.ForceDirectedLayout {
-              // Override the makeNetwork method to also initialize
-              // ForceDirectedVertex.isFixed from the corresponding Node.isSelected.
-              makeNetwork(coll) {
-                // call base method for standard behavior
-                const net = super.makeNetwork(coll);
-                net.vertexes.each((vertex) => {
-                  const node = vertex.node;
-                  if (node !== null) vertex.isFixed = node.isSelected;
-                });
-                return net;
-              }
-            }
-            // end DemoForceDirectedLayout class
+          var myDiagram = null;
+          var currentGraph = 0;
+          var maxLayouts = 5;
+          function toggleLayout(val) {
+            var $ = go.GraphObject.make;
+            let graphToView = !isNaN(val) ? val - 1 : currentGraph;
 
+            if (graphToView === maxLayouts - 1) {
+              graphToView = 0;
+              currentGraph = 0;
+            } else {
+              ++graphToView;
+              ++currentGraph;
+            }
+            switch (graphToView) {
+              case 0:
+                myDiagram.layout = $(go.LayeredDigraphLayout);
+                break;
+              case 1:
+                myDiagram.layout = $(go.ForceDirectedLayout, {
+                  defaultSpringLength: 30,
+                  defaultElectricalCharge: 100,
+                });
+                break;
+              case 2:
+                myDiagram.layout = new DemoForceDirectedLayout();
+                break;
+              case 3:
+                myDiagram.layout = $(go.GridLayout, {
+                  comparer: go.GridLayout.smartComparer,
+                });
+                break;
+              case 4:
+                myDiagram.layout = $(go.TreeLayout, {
+                  comparer: go.LayoutVertex.smartComparer,
+                });
+                break;
+            }
+          }
+          // define a custom ForceDirectedLayout for this sample
+          class DemoForceDirectedLayout extends go.ForceDirectedLayout {
+            // Override the makeNetwork method to also initialize
+            // ForceDirectedVertex.isFixed from the corresponding Node.isSelected.
+            makeNetwork(coll) {
+              // call base method for standard behavior
+              const net = super.makeNetwork(coll);
+              net.vertexes.each((vertex) => {
+                const node = vertex.node;
+                if (node !== null) vertex.isFixed = node.isSelected;
+              });
+              return net;
+            }
+          }
+          // end DemoForceDirectedLayout class
+          function init() {
             console.log(ALL_REGISTRIES);
             console.log(LINK_DATA_ARRAY_HERE);
 
@@ -74,8 +112,8 @@
                 fromSpot: go.Spot.Right, // links only go from the right side to the left side
                 toSpot: go.Spot.Left,
                 // allow drawing links from or to this port:
-                fromLinkable: true,
-                toLinkable: true,
+                fromLinkable: false,
+                toLinkable: false,
               },
               $(
                 go.Shape,
@@ -136,7 +174,11 @@
                   go.Panel,
                   "Auto",
                   { stretch: go.GraphObject.Horizontal }, // as wide as the whole node
-                  $(go.Shape, { fill: "#1570A6", stroke: null }),
+                  $(
+                    go.Shape,
+                    { fill: "white", stroke: null },
+                    new go.Binding("fill", "color")
+                  ),
                   $(
                     go.TextBlock,
                     {
@@ -202,6 +244,14 @@
             style="border: solid 1px black; width: 100%; height: 100vh"
           ></div>
           <div>
+            <button
+              onclick="toggleLayout()"
+              style="position: fixed; top: 0px; right: 100px; z-index: 1000"
+            >
+              Toggle
+            </button>
+            <!-- <button onclick="init(1)">Directed Graph View</button> -->
+            <!-- <button onclick="init(2)">Force Directed View</button> -->
             <textarea
               id="mySavedModel"
               style="width: 100%; height: 250px"
