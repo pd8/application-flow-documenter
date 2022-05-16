@@ -11,8 +11,7 @@
       content="A diagram for displaying and editing the N to M relationships from one set of objects to another set of objects."
     />
     <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.1.52/go-debug.min.js"
-      integrity="sha512-EVALZ5jciAqhC7oOlUctDxnbjgiPlZGH7CzxbhlyPHsTybodw8HkMNsdSRyDI4/FqDJpxp2ZpWlKGwDQsMDu9w=="
+      src="https://unpkg.com/gojs/release/go.js"
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
@@ -31,7 +30,29 @@
 
       <div class="p-4 w-full">
         <script id="code">
+          const registries = ALL_REGISTRIES;
+          const nodes = NODE_DATA_ARRAY_HERE;
+          const links = LINK_DATA_ARRAY_HERE;
+
           var myDiagram = null;
+          var showNonRelative = true;
+          function toggleNonRelative() {
+            if (!showNonRelative) {
+              myDiagram.model.nodeDataArray = nodes;
+              myDiagram.model.linkDataArray = links;
+            } else {
+              const linksToRemove = nodes
+                .filter((n) => !n.isRelative)
+                .map((n) => n.key);
+              myDiagram.model.nodeDataArray = nodes.filter((n) => n.isRelative);
+              myDiagram.model.linkDataArray =
+                myDiagram.model.linkDataArray.filter(
+                  (l) => !linksToRemove.includes(l.from)
+                );
+            }
+            showNonRelative = !showNonRelative;
+          }
+
           var currentGraph = 0;
           var maxLayouts = 5;
           function toggleLayout(val) {
@@ -98,7 +119,6 @@
               ModelChanged: function (e) {
                 if (e.isTransactionFinished) showModel();
               },
-              "undoManager.isEnabled": true,
             });
 
             // This template is a Panel that is used to represent each item in a Panel.itemArray.
@@ -163,6 +183,7 @@
               new go.Binding("location", "loc", go.Point.parse).makeTwoWay(
                 go.Point.stringify
               ),
+              new go.Binding("visible", "visible"),
               // this rectangular shape surrounds the content of the node
               $(go.Shape, { fill: "#EEEEEE" }),
               // the content consists of a header and a list of items
@@ -210,13 +231,12 @@
             myDiagram.linkTemplate = $(
               go.Link,
               {
-                relinkableFrom: true,
-                relinkableTo: true, // let user reconnect links
-                toShortLength: 4,
-                fromShortLength: 2,
+                relinkableFrom: false,
+                relinkableTo: false, // let user reconnect links
+                toShortLength: -5,
+                fromShortLength: -10,
               },
-              $(go.Shape, { strokeWidth: 1.5 }),
-              $(go.Shape, { toArrow: "Standard", stroke: null })
+              $(go.Shape, { strokeWidth: 0.5, stroke: "#666" })
             );
 
             myDiagram.model = $(go.GraphLinksModel, {
@@ -248,10 +268,14 @@
               onclick="toggleLayout()"
               style="position: fixed; top: 0px; right: 100px; z-index: 1000"
             >
-              Toggle
+              Toggle View Style
             </button>
-            <!-- <button onclick="init(1)">Directed Graph View</button> -->
-            <!-- <button onclick="init(2)">Force Directed View</button> -->
+            <button
+              onclick="toggleNonRelative()"
+              style="position: fixed; top: 0px; right: 0px; z-index: 1000"
+            >
+              Toggle Non Relative
+            </button>
             <textarea
               id="mySavedModel"
               style="width: 100%; height: 250px"

@@ -68,6 +68,7 @@ const convertRegistryToNodes = (
       key,
       fields,
       links,
+      isRelative: registry[key].meta.isRelative,
       color: !registry[key].meta.isRelative ? "#fcba03" : "#1570a6",
     };
   });
