@@ -37,7 +37,7 @@ const isImport = (
 
 const registry2: Record<
   string,
-  { meta: { isRelative: boolean }; functions: Record<string, Array<string>> }
+  { meta: { isRelative: boolean }; imports: Record<string, Array<string>> }
 > = {};
 
 const links: Array<{
@@ -46,6 +46,11 @@ const links: Array<{
   to: string;
   toPort: string;
 }> = [];
+
+const aliases = {
+  sharedLib: "./app/lib",
+  adminShared: "./app/bundles/admin",
+};
 
 const createRegistryAndLinks = (
   imports: Array<Estree.ImportDeclaration>,
@@ -61,12 +66,20 @@ const createRegistryAndLinks = (
       nodePath = nodePath.replace(".", "./index");
     }
 
+    // Object.entries(aliases).forEach(([alias, mapping]) => {
+    // nodePath = nodePath.replace(alias, mapping);
+    // });
+
     const isRelative = isRelativePath(nodePath);
     let from = isRelative
       ? path.join(entry.relativeDirectory, nodePath) // relative
       : nodePath; // non relative, so either aliased or node module
 
     from = from.replace("/index", "");
+
+    if (/(scss|css|sass|json)/.test(from)) {
+      return;
+    }
 
     // Add all files and the vars that are imported from, into the registry
     const imps = specifiers.map((specifier) => {
@@ -86,16 +99,16 @@ const createRegistryAndLinks = (
       }
 
       if (registry2[from]) {
-        if (registry2[from].functions[name]) {
+        if (registry2[from].imports[name]) {
           console.info(
             `Already seen file and function, \x1b[35m${name}\x1b[0m imported from \x1b[36m${from}\x1b[0m in \x1b[36m${to}\x1b[0m`
           );
-          registry2[from].functions[name].push(to);
+          registry2[from].imports[name].push(to);
         } else {
           console.info(
             `First time seeing function, \x1b[35m${name}\x1b[0m imported from \x1b[36m${from}\x1b[0m in \x1b[36m${to}\x1b[0m`
           );
-          registry2[from].functions[name] = [to];
+          registry2[from].imports[name] = [to];
         }
       } else {
         console.info(
@@ -103,7 +116,7 @@ const createRegistryAndLinks = (
         );
         registry2[from] = {
           meta: { isRelative },
-          functions: { [name]: [to] },
+          imports: { [name]: [to] },
         };
       }
 
@@ -132,12 +145,12 @@ const createRegistryAndLinks = (
         console.info(
           `\x1b[36m${entry.relativePath}\x1b[0m is index file and not the root directory, so added to the registry as directory path`
         );
-        registry2[safeFileName] = { meta: { isRelative: true }, functions: {} };
+        registry2[safeFileName] = { meta: { isRelative: true }, imports: {} };
       } else if (entry.fileNameWOExt === "index") {
         console.info(
           `Root \x1b[36mindex\x1b[0m file added to registry as "index"`
         );
-        registry2["index"] = { meta: { isRelative: true }, functions: {} };
+        registry2["index"] = { meta: { isRelative: true }, imports: {} };
       } else {
         const safeFileName = path.join(
           entry.relativeDirectory,
@@ -146,7 +159,7 @@ const createRegistryAndLinks = (
         console.info(
           `\x1b[36m${safeFileName}\x1b[0m is unknown non index file, adding to the registry`
         );
-        registry2[safeFileName] = { meta: { isRelative: true }, functions: {} };
+        registry2[safeFileName] = { meta: { isRelative: true }, imports: {} };
       }
     }
 

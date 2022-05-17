@@ -14,7 +14,7 @@ const parser = yargs(hideBin(process.argv)).options({
   path: { type: "string", demandOption: true },
   exclude: {
     type: "string",
-    default: "test|node_modules|dist|fixtures|spec|snap|modules",
+    default: "test|node_modules|dist|fixtures|spec|snap",
   },
 });
 
@@ -58,7 +58,7 @@ const convertRegistryToNodes = (
   return Object.entries(registry).map(([key, value]) => {
     const fields = [
       { name: "imports", color: "green", figure: "TriangleLeft" },
-      ...Object.entries(value.functions).map(([func, obj]) => {
+      ...Object.entries(value.imports).map(([func]) => {
         return { name: func, color: "#00BCF2", figure: "TriangleRight" };
       }),
     ];
@@ -74,7 +74,7 @@ const convertRegistryToNodes = (
   });
 };
 
-const replaceInFile = async (
+const writeDiagram = async (
   nodes: Array<Node>,
   links: Array<Link>,
   registries: ReturnType<typeof getRegistry2>
@@ -87,6 +87,13 @@ const replaceInFile = async (
 
   await fsPromises.writeFile("tree.html", result, "utf8");
 };
+
+const writeJson = async (registries: ReturnType<typeof getRegistry2>) =>
+  await fsPromises.writeFile(
+    "registries.json",
+    JSON.stringify(registries),
+    "utf8"
+  );
 
 (async function main() {
   const argv = await parser.argv;
@@ -105,5 +112,6 @@ const replaceInFile = async (
   const links = getLinks();
   const registry = getRegistry2();
   const nodes = convertRegistryToNodes(registry, links);
-  await replaceInFile(nodes, links, registry);
+  await writeDiagram(nodes, links, registry);
+  await writeJson(registry);
 })();
